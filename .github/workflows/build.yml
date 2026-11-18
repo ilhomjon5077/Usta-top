@@ -25,6 +25,14 @@ jobs:
           sed -i 's/android:label="usta_top"/android:label="Usta Top"/' "$M"
           grep -q 'android.permission.INTERNET' "$M" || sed -i '0,/<application/s##<uses-permission android:name="android.permission.INTERNET"/>\n    <application#' "$M"
           head -5 "$M"
+      - name: Ilova ikonkasi (logotip)
+        run: |
+          sudo apt-get install -y librsvg2-bin >/dev/null
+          cat > icon.svg <<'SVGEND'
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><rect width="1024" height="1024" rx="230" fill="#2563EB"/><path d="M210 520 L512 268 L814 520" fill="none" stroke="#FFFFFF" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/><path d="M300 470 V770 Q300 800 330 800 H694 Q724 800 724 770 V470" fill="none" stroke="#FFFFFF" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/><g transform="translate(380 500) scale(11)"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" fill="none" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></g><polygon points="775.0,132.0 805.6,207.9 887.2,213.5 824.5,266.1 844.4,345.5 775.0,302.0 705.6,345.5 725.5,266.1 662.8,213.5 744.4,207.9" fill="#F59E0B" stroke="#2563EB" stroke-width="22" stroke-linejoin="round"/></svg>
+          SVGEND
+          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do n=${d%%:*}; s=${d##*:}; rsvg-convert -w $s -h $s icon.svg -o android/app/src/main/res/mipmap-$n/ic_launcher.png; done
+          ls -la android/app/src/main/res/mipmap-*/
       - run: flutter pub get
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
