@@ -1,0 +1,54 @@
+name: Usta Top Web (iPhone)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Loyihani ochish
+        run: |
+          grep -o "echo '[^']*' | base64 -d" .github/workflows/build.yml | head -1 | sed "s/^echo '//; s/' | base64 -d\$//" | base64 -d | tar -xJf -
+          if [ -d patch ]; then cp -r patch/. .; fi
+          ls lib
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Veb papkasini yaratish
+        run: flutter create --org uz.ustatop --project-name usta_top --platforms web .
+      - name: Nom va ikonka (logotip)
+        run: |
+          sudo apt-get install -y librsvg2-bin >/dev/null
+          awk '/cat > icon.svg <</{f=1;next} /SVGEND/{f=0} f' .github/workflows/build.yml | sed 's/^          //' > icon.svg
+          head -c 200 icon.svg; echo
+          for s in 192 512; do
+            rsvg-convert -w $s -h $s icon.svg -o web/icons/Icon-$s.png
+            cp web/icons/Icon-$s.png web/icons/Icon-maskable-$s.png
+          done
+          rsvg-convert -w 32 -h 32 icon.svg -o web/favicon.png
+          sed -i 's/"name": "usta_top"/"name": "Usta Top"/; s/"short_name": "usta_top"/"short_name": "Usta Top"/; s/"theme_color": "[^"]*"/"theme_color": "#2563EB"/; s/"background_color": "[^"]*"/"background_color": "#F3F6FB"/' web/manifest.json
+          sed -i 's/content="usta_top"/content="Usta Top"/g; s#<title>usta_top</title>#<title>Usta Top</title>#' web/index.html
+          cat web/manifest.json
+      - run: flutter pub get
+      - run: flutter build web --release --base-href /Usta-top/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.d.outputs.page_url }}
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4
