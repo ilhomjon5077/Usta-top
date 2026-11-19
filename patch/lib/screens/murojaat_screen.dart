@@ -1,17 +1,16 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/auth.dart';
 import '../i18n.dart';
 import '../theme.dart';
 
-/// Telegram bot sozlamalari ilova yig'ilayotganda GitHub Secrets'dan qo'yiladi
-/// (--dart-define=BOT_TOKEN=... --dart-define=ADMIN_ID=...). Kodda saqlanmaydi.
-const _botToken = String.fromEnvironment('BOT_TOKEN');
-const _adminId = String.fromEnvironment('ADMIN_ID');
+/// Murojaatlar boradigan Telegram (@ belgisisiz).
+const _telegram = 'Muhammadulloh77';
 
 /// Bu oynadagi matnlar uch tilda.
 String _m(String uz, String en, String ru) {
@@ -107,45 +106,13 @@ class _MurojaatScreenState extends State<MurojaatScreen> {
         '✅ Спасибо, что написали! Скоро наши операторы вам ответят.',
       );
 
-  Future<bool> _telegramga(String turi, String matn) async {
-    if (_botToken.isEmpty || _adminId.isEmpty) return false;
-    final u = Auth.joriy.value;
-    final sarlavha = turi == 'taklif' ? '💡 YANGI TAKLIF (ilovadan)' : '⚠️ YANGI SHIKOYAT (ilovadan)';
-    final kim = u != null ? '👤 ${u.toliqIsm}\n📞 ${u.telefonChiroyli}\n' : '';
-    final text = '$sarlavha\n$kim🌐 Til: ${til.value}\n\n$matn';
-    try {
-      final r = await http
-          .post(
-            Uri.parse('https://api.telegram.org/bot$_botToken/sendMessage'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'chat_id': _adminId, 'text': text}),
-          )
-          .timeout(const Duration(seconds: 15));
-      return r.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<void> _yubor() async {
     final matn = _ctrl.text.trim();
     if (matn.isEmpty || _yuborilmoqda) return;
-    setState(() => _yuborilmoqda = true);
-    final ok = await _telegramga(_turi, matn);
-    if (!mounted) return;
-    setState(() => _yuborilmoqda = false);
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_m(
-          "Yuborilmadi. Internetni tekshirib, qaytadan urinib ko'ring.",
-          'Not sent. Check your internet connection and try again.',
-          'Не отправлено. Проверьте интернет и попробуйте снова.',
-        )),
-      ));
-      return;
-    }
+    final turi = _turi;
     setState(() {
-      _royxat.add(Murojaat(_turi, matn, DateTime.now()));
+      _yuborilmoqda = true;
+      _royxat.add(Murojaat(turi, matn, DateTime.now()));
       _ctrl.clear();
     });
     await _saqla();
@@ -155,9 +122,30 @@ class _MurojaatScreenState extends State<MurojaatScreen> {
             duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
       }
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(_rahmat()),
-    ));
+
+    // Telegram chatini tayyor matn bilan ochamiz
+    final u = Auth.joriy.value;
+    final sarlavha = turi == 'taklif' ? '💡 TAKLIF' : '⚠️ SHIKOYAT';
+    final kim = u != null ? '👤 ${u.toliqIsm}\n📞 ${u.telefonChiroyli}\n' : '';
+    final text = '$sarlavha (Usta Top ilovasidan)\n$kim\n$matn';
+    await Clipboard.setData(ClipboardData(text: text));
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    final url = Uri.parse('https://t.me/$_telegram?text=${Uri.encodeComponent(text)}');
+    var ok = false;
+    try {
+      ok = await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() => _yuborilmoqda = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(_m(
+          "Telegram ochilmadi. Xabaringiz nusxalandi — Telegram'da @$_telegram ga yuboring.",
+          'Telegram did not open. Your message was copied — send it to @$_telegram on Telegram.',
+          'Telegram не открылся. Сообщение скопировано — отправьте его @$_telegram в Telegram.',
+        )),
+      ));
+    }
   }
 
   Widget _pufak(String matn, {required bool menDan, String? tepa, DateTime? vaqt}) {
